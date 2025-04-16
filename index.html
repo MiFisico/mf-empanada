@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Credit Note Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Add minor styles for better scrollbars if needed */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Ensure panels can scroll independently */
+        .panel-scroll {
+            overflow-y: auto;
+        }
+        /* Ensure inspector height fills available space */
+        .inspector-container {
+             max-height: calc(100vh - 250px); /* Adjust based on header/upload/padding height */
+             overflow-y: auto;
+        }
+
+        /* Add pointer cursor for clickable elements */
+        .clickable { cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="flex flex-col h-screen bg-gray-100">
+        <header class="bg-blue-600 text-white p-4 shadow-md flex-shrink-0">
+            <h1 class="text-xl font-bold">JSON Credit Note Viewer</h1>
+        </header>
+
+        <div class="p-4 flex flex-col flex-grow overflow-hidden">
+            <!-- Upload Section -->
+            <div class="mb-6 bg-white rounded-lg shadow p-4 flex-shrink-0">
+                <div class="flex items-center mb-4">
+                    <!-- FileJson Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-blue-500"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13v1"/><path d="M14 17v-1"/><path d="M7 10v4h6v-4"/><path d="M10 10v4"/></svg>
+                    <h2 class="text-lg font-semibold">Upload JSON Data</h2>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-4">
+                    <label id="upload-label" class="flex items-center justify-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded cursor-pointer transition-colors">
+                        <!-- Upload Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                        <span id="upload-button-text">Choose File</span>
+                        <input id="file-input" type="file" accept=".json" class="hidden"/>
+                    </label>
+
+                    <button id="clear-button" class="hidden flex items-center px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition-colors">
+                        <!-- X Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                        Clear Data
+                    </button>
+
+                    <div id="record-count" class="text-sm text-gray-500 hidden"></div>
+                </div>
+            </div>
+
+            <!-- Main Content Area (List and Inspector) -->
+            <div id="main-content" class="hidden flex flex-grow h-full gap-6 overflow-hidden">
+                <!-- Left Panel - List -->
+                <div class="w-1/3 bg-white rounded-lg shadow flex flex-col">
+                    <div class="p-4 border-b flex-shrink-0">
+                        <h2 class="font-semibold mb-2">Credit Notes</h2>
+                        <div class="relative">
+                            <input id="search-input" type="text" placeholder="Search in any field..." class="w-full px-3 py-2 border rounded-md"/>
+                        </div>
+                        <p id="list-count" class="text-sm text-gray-500 mt-2"></p>
+                    </div>
+
+                    <div id="list-container" class="divide-y panel-scroll flex-grow">
+                        <!-- List items will be generated here -->
+                    </div>
+                </div>
+
+                <!-- Right Panel - Inspector -->
+                <div class="w-2/3">
+                    <div id="inspector-placeholder" class="bg-white rounded-lg shadow p-6 flex flex-col items-center justify-center text-center h-64">
+                         <!-- File Icon -->
+                         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-300 mb-4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <h3 class="text-lg font-medium text-gray-700">No Credit Note Selected</h3>
+                        <p class="text-gray-500 mt-2">
+                            Select a credit note from the list to view its details
+                        </p>
+                    </div>
+                    <div id="inspector-content" class="hidden bg-white rounded-lg shadow overflow-hidden h-full flex flex-col">
+                         <div class="p-4 border-b sticky top-0 bg-white z-10 flex-shrink-0">
+                            <h2 id="inspector-title" class="font-semibold">Credit Note Inspector</h2>
+                            <p id="inspector-subtitle" class="text-sm text-gray-500"></p>
+                        </div>
+                        <div id="inspector-details" class="p-4 inspector-container panel-scroll">
+                            <!-- Inspector details will be generated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State Variables ---
+        let jsonData = [];
+        let selectedRowIndex = null;
+        let searchTerm = "";
+        let isUploading = false;
+
+        // --- DOM Elements ---
+        const fileInput = document.getElementById('file-input');
+        const uploadLabel = document.getElementById('upload-label');
+        const uploadButtonText = document.getElementById('upload-button-text');
+        const clearButton = document.getElementById('clear-button');
+        const recordCount = document.getElementById('record-count');
+        const mainContent = document.getElementById('main-content');
+        const searchInput = document.getElementById('search-input');
+        const listContainer = document.getElementById('list-container');
+        const listCount = document.getElementById('list-count');
+        const inspectorPlaceholder = document.getElementById('inspector-placeholder');
+        const inspectorContent = document.getElementById('inspector-content');
+        const inspectorTitle = document.getElementById('inspector-title');
+        const inspectorSubtitle = document.getElementById('inspector-subtitle');
+        const inspectorDetails = document.getElementById('inspector-details');
+
+        // --- Icons (SVG Strings) ---
+        const iconChevronRight = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+        const iconChevronDown = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-gray-500"><polyline points="6 9 12 15 18 9"/></svg>`;
+        const iconChevronRightSmall = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-gray-500"><polyline points="9 18 15 12 9 6"/></svg>`;
+        const iconDownload = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>`;
+
+        // --- Constants ---
+        const jsonPropertyKeys = [
+            'credit_note_request_payload',
+            'credit_note_response_payload',
+            'ministry_credit_note_request_payload',
+            'ministry_credit_note_response_payload',
+            'ministry_credit_note_validation_details'
+        ];
+
+        // --- Event Listeners ---
+        fileInput.addEventListener('change', handleFileUpload);
+        clearButton.addEventListener('click', resetData);
+        searchInput.addEventListener('input', handleSearch);
+
+        // --- Core Functions ---
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            setIsUploading(true);
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    // Ensure data is an array
+                    if (!Array.isArray(data)) {
+                       throw new Error("Uploaded JSON is not an array.");
+                    }
+                    jsonData = data;
+                    selectedRowIndex = null;
+                    searchTerm = ""; // Reset search on new upload
+                    searchInput.value = ""; // Clear search input visually
+                    renderUI();
+                    setIsUploading(false);
+                } catch (error) {
+                    alert('Error parsing JSON file: ' + error.message);
+                    setIsUploading(false);
+                }
+            };
+            reader.onerror = () => {
+                alert('Error reading file');
+                setIsUploading(false);
+            };
+            reader.readAsText(file);
+
+            // Reset file input to allow uploading the same file again
+             event.target.value = null;
+        }
+
+        function resetData() {
+            jsonData = [];
+            selectedRowIndex = null;
+            searchTerm = "";
+            searchInput.value = "";
+            renderUI();
+        }
+
+        function handleSearch(event) {
+            searchTerm = event.target.value.toLowerCase();
+            selectedRowIndex = null; // Deselect row when searching
+            renderUI();
+        }
+
+        function setIsUploading(uploading) {
+            isUploading = uploading;
+            uploadButtonText.textContent = isUploading ? 'Uploading...' : 'Choose File';
+            uploadLabel.classList.toggle('cursor-not-allowed', isUploading);
+            uploadLabel.classList.toggle('opacity-75', isUploading);
+            fileInput.disabled = isUploading;
+        }
+
+        // --- Search Logic ---
+        function searchInObject(obj, term) {
+            if (!term) return true;
+            term = term.toLowerCase();
+            return Object.values(obj).some(value => {
+                if (typeof value === 'string') {
+                    return value.toLowerCase().includes(term);
+                }
+                // Optionally search in numbers converted to string
+                // if (typeof value === 'number') {
+                //     return String(value).toLowerCase().includes(term);
+                // }
+                return false;
+            });
+        }
+
+        // --- Rendering Functions ---
+        function renderUI() {
+            renderControls();
+            renderList();
+            renderInspector();
+        }
+
+        function renderControls() {
+            const hasData = jsonData.length > 0;
+            clearButton.classList.toggle('hidden', !hasData);
+            recordCount.classList.toggle('hidden', !hasData);
+            mainContent.classList.toggle('hidden', !hasData);
+            if (hasData) {
+                recordCount.textContent = `Loaded ${jsonData.length} record(s)`;
+            }
+        }
+
+        function renderList() {
+            listContainer.innerHTML = ''; // Clear previous list
+
+            const filteredData = jsonData.filter(item => searchInObject(item, searchTerm));
+
+            listCount.textContent = `${filteredData.length} of ${jsonData.length} records`;
+
+            if (filteredData.length === 0 && jsonData.length > 0) {
+                 const noResultsDiv = document.createElement('div');
+                 noResultsDiv.className = 'p-4 text-center text-gray-500';
+                 noResultsDiv.textContent = 'No matching records found.';
+                 listContainer.appendChild(noResultsDiv);
+                 return;
+            }
+
+            filteredData.forEach((item) => {
+                // Find the original index in the *unfiltered* array
+                const originalIndex = jsonData.findIndex(originalItem => originalItem === item);
+
+                const div = document.createElement('div');
+                div.className = `p-3 cursor-pointer transition-colors hover:bg-gray-50`;
+                if (selectedRowIndex === originalIndex) {
+                    div.classList.add('bg-blue-50', 'border-l-4', 'border-blue-500');
+                }
+                div.dataset.index = originalIndex; // Store original index
+
+                const innerDiv = document.createElement('div');
+                innerDiv.className = 'flex justify-between items-center';
+
+                const textDiv = document.createElement('div');
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'font-medium';
+                titleDiv.textContent = item.credit_note_credit_note_number || `Record #${originalIndex + 1}`;
+                const statusDiv = document.createElement('div');
+                statusDiv.className = 'text-sm text-gray-500';
+                statusDiv.textContent = item.credit_note_status || 'N/A';
+                textDiv.appendChild(titleDiv);
+                textDiv.appendChild(statusDiv);
+
+                const iconDiv = document.createElement('div');
+                iconDiv.innerHTML = iconChevronRight;
+                iconDiv.className = selectedRowIndex === originalIndex ? 'text-blue-500' : 'text-gray-400';
+
+
+                innerDiv.appendChild(textDiv);
+                innerDiv.appendChild(iconDiv);
+                div.appendChild(innerDiv);
+
+                div.addEventListener('click', () => {
+                    selectedRowIndex = originalIndex;
+                    renderUI(); // Re-render list for selection highlight and inspector
+                });
+
+                listContainer.appendChild(div);
+            });
+        }
+
+        function renderInspector() {
+            if (selectedRowIndex === null || selectedRowIndex >= jsonData.length) {
+                inspectorPlaceholder.style.display = 'flex';
+                inspectorContent.classList.add('hidden');
+                return;
+            }
+
+            inspectorPlaceholder.style.display = 'none';
+            inspectorContent.classList.remove('hidden');
+            inspectorDetails.innerHTML = ''; // Clear previous details
+
+            const data = jsonData[selectedRowIndex];
+
+            inspectorTitle.textContent = 'Credit Note Inspector';
+            inspectorSubtitle.textContent = data.credit_note_credit_note_id || `Details for Record #${selectedRowIndex + 1}`;
+
+            Object.entries(data).forEach(([key, value]) => {
+                const propertyDiv = createPropertyElement(key, value, data);
+                inspectorDetails.appendChild(propertyDiv);
+            });
+        }
+
+        function createPropertyElement(key, value, parentData) {
+            const div = document.createElement('div');
+            div.className = 'mb-6 last:mb-0';
+
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'flex justify-between items-center mb-1';
+
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'font-medium text-gray-700';
+            titleDiv.textContent = formatPropertyName(key);
+            headerDiv.appendChild(titleDiv);
+
+            // --- JSON Handling & Download Button ---
+            const mightBeJson = jsonPropertyKeys.includes(key) && typeof value === 'string';
+            let parsedValue = value;
+            let isValidJson = false;
+
+            if (mightBeJson && value && value.trim().startsWith('{') || value.trim().startsWith('[')) {
+                 try {
+                    parsedValue = JSON.parse(value);
+                    isValidJson = true;
+                 } catch (e) { /* Ignore parsing error, treat as string */ }
+            }
+
+             if (isValidJson) {
+                const baseFileName = parentData.credit_note_credit_note_number || `record_${selectedRowIndex + 1}`;
+                const fileName = `${baseFileName}_${key}.json`;
+
+                const downloadButton = document.createElement('button');
+                downloadButton.className = 'text-sm px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center';
+                downloadButton.innerHTML = iconDownload + 'Download';
+                downloadButton.onclick = () => downloadJson(parsedValue, fileName);
+                headerDiv.appendChild(downloadButton);
+            }
+            // --- End JSON Handling ---
+
+            div.appendChild(headerDiv);
+
+            // --- Value Display ---
+            let valueElement;
+            if (isValidJson) {
+                valueElement = createJsonTreeElement(parsedValue);
+            } else {
+                valueElement = document.createElement('div');
+                valueElement.className = 'bg-gray-50 p-3 rounded border border-gray-200 font-mono text-sm overflow-x-auto whitespace-pre-wrap break-words'; // Allow wrapping
+                if (value === null || value === undefined || value === '') {
+                    valueElement.innerHTML = `<span class="text-gray-400 italic">Empty</span>`;
+                } else {
+                    valueElement.textContent = String(value);
+                }
+            }
+            div.appendChild(valueElement);
+            // --- End Value Display ---
+
+            return div;
+        }
+
+        // --- JSON Tree Functions ---
+        function createJsonTreeElement(data, initiallyExpanded = false) {
+            const container = document.createElement('div');
+            container.className = 'bg-gray-50 rounded border border-gray-200 overflow-hidden';
+
+            if (data === null) {
+                container.className = 'inline-block'; // Don't give it block structure
+                container.innerHTML = `<span class="text-purple-600 font-mono text-sm">null</span>`;
+                return container;
+            }
+
+            if (typeof data !== 'object') {
+                 container.className = 'inline-block'; // Don't give it block structure
+                 let textContent = String(data);
+                 let textColor = 'text-green-700'; // String default
+                 if (typeof data === 'number') textColor = 'text-blue-600';
+                 if (typeof data === 'boolean') textColor = 'text-red-600';
+
+                 // Basic escaping for display
+                 textContent = textContent.replace(/</g, "<").replace(/>/g, ">");
+
+                 container.innerHTML = `<span class="${textColor} font-mono text-sm">${textContent}</span>`;
+                 return container;
+            }
+
+            const isArray = Array.isArray(data);
+            const keys = Object.keys(data);
+            const isEmpty = keys.length === 0;
+
+            if (isEmpty) {
+                 container.className = 'inline-block'; // Don't give it block structure
+                 container.innerHTML = `<span class="text-gray-500 font-mono text-sm">${isArray ? '[]' : '{}'}</span>`;
+                 return container;
+            }
+
+            // --- Collapsible Header ---
+            const header = document.createElement('div');
+            header.className = 'flex items-center p-2 cursor-pointer hover:bg-gray-100 transition-colors border-b border-gray-200 clickable';
+            const iconSpan = document.createElement('span');
+            iconSpan.innerHTML = initiallyExpanded ? iconChevronDown : iconChevronRightSmall;
+            const textSpan = document.createElement('span');
+            textSpan.className = 'font-medium text-sm text-gray-700';
+            textSpan.textContent = isArray ? `Array (${keys.length} items)` : `Object (${keys.length} properties)`;
+            header.appendChild(iconSpan);
+            header.appendChild(textSpan);
+            container.appendChild(header);
+            // --- End Header ---
+
+            // --- Collapsible Content ---
+            const content = document.createElement('div');
+            content.className = 'p-2 pl-6'; // Indent content
+            content.style.display = initiallyExpanded ? 'block' : 'none';
+
+            keys.forEach(key => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'mb-1 last:mb-0'; // Spacing between items
+
+                const flexDiv = document.createElement('div');
+                flexDiv.className = 'flex items-start'; // Align items at the start for long values
+
+                const keySpan = document.createElement('span');
+                keySpan.className = 'font-medium text-indigo-600 mr-2 text-sm font-mono flex-shrink-0'; // Key styling
+                keySpan.textContent = `"${key}":`;
+                if (isArray) {
+                   keySpan.className = 'font-medium text-gray-500 mr-2 text-sm font-mono flex-shrink-0'; // Index styling
+                   keySpan.textContent = `${key}:`;
+                }
+
+                const valueDiv = document.createElement('div');
+                valueDiv.className = 'flex-1 min-w-0'; // Allow value to wrap
+                valueDiv.appendChild(createJsonTreeElement(data[key])); // Recursive call
+
+                flexDiv.appendChild(keySpan);
+                flexDiv.appendChild(valueDiv);
+                itemDiv.appendChild(flexDiv);
+                content.appendChild(itemDiv);
+            });
+            container.appendChild(content);
+             // --- End Content ---
+
+            // --- Toggle Logic ---
+            let isExpanded = initiallyExpanded;
+            header.addEventListener('click', () => {
+                isExpanded = !isExpanded;
+                content.style.display = isExpanded ? 'block' : 'none';
+                iconSpan.innerHTML = isExpanded ? iconChevronDown : iconChevronRightSmall;
+            });
+            // --- End Toggle ---
+
+            return container;
+        }
+
+
+        // --- Utility Functions ---
+        function formatPropertyName(key) {
+            return key
+                .replace(/_/g, ' ')
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        }
+
+        function downloadJson(jsonData, fileName) {
+            try {
+                const jsonString = JSON.stringify(jsonData, null, 2); // Pretty print
+                const blob = new Blob([jsonString], { type: 'application/json' });
+
+                // Use FileReader to create a data URL (safer for large files/complex objects)
+                const reader = new FileReader();
+                reader.onload = function() {
+                    const dataUrl = reader.result;
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = fileName;
+                    document.body.appendChild(link); // Required for Firefox
+                    link.click();
+                    document.body.removeChild(link); // Clean up
+                };
+                 reader.onerror = function() {
+                     alert('Error creating download link.');
+                 }
+                reader.readAsDataURL(blob);
+
+            } catch (error) {
+                console.error("Error preparing JSON for download:", error);
+                alert(`Could not prepare JSON for download: ${error.message}`);
+            }
+        }
+
+        // --- Initial Render ---
+        renderUI(); // Render initial empty state
+
+    </script>
+</body>
+</html>
